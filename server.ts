@@ -265,27 +265,66 @@ async function startServer() {
           }
         }
       } else if (url.includes("instagram.com")) {
-        // Instagram extraction (basic meta tag check)
-        const videoUrl = $('meta[property="og:video"]').attr("content") || $('meta[property="og:video:url"]').attr("content") || $('meta[property="og:video:secure_url"]').attr("content");
+        // Instagram extraction - check for multiple meta tags and script data
+        const videoUrl = $('meta[property="og:video"]').attr("content") || 
+                        $('meta[property="og:video:url"]').attr("content") || 
+                        $('meta[property="og:video:secure_url"]').attr("content") ||
+                        $('meta[name="twitter:player:stream"]').attr("content");
+        
         if (videoUrl) {
           videoLinks.push({ quality: "HD", url: videoUrl, format: "mp4", type: "both" });
         }
+        
+        // Try to find in scripts if meta tags fail
+        if (videoLinks.length === 0) {
+          const scripts = $("script").toArray();
+          for (const script of scripts) {
+            const content = $(script).html() || "";
+            if (content.includes("video_url")) {
+              const match = content.match(/"video_url":"([^"]+)"/);
+              if (match) {
+                videoLinks.push({ quality: "HD", url: match[1].replace(/\\u0026/g, "&"), format: "mp4", type: "both" });
+                break;
+              }
+            }
+          }
+        }
       } else if (url.includes("tiktok.com")) {
-        // TikTok extraction (very basic, often requires specialized scrapers, but we can try meta tags)
-        const videoUrl = $('meta[property="og:video"]').attr("content") || $('meta[property="og:video:secure_url"]').attr("content");
-        if (videoUrl) {
+        const videoUrl = $('meta[property="og:video"]').attr("content") || 
+                        $('meta[property="og:video:secure_url"]').attr("content") ||
+                        $('link[rel="canonical"]').attr("href");
+        
+        if (videoUrl && videoUrl.includes("video")) {
           videoLinks.push({ quality: "Original", url: videoUrl, format: "mp4", type: "both" });
         }
       } else if (url.includes("twitter.com") || url.includes("x.com")) {
-        // Twitter/X extraction (basic meta tag check)
-        const videoUrl = $('meta[property="og:video:url"]').attr("content") || $('meta[name="twitter:player:stream"]').attr("content");
+        const videoUrl = $('meta[property="og:video:url"]').attr("content") || 
+                        $('meta[name="twitter:player:stream"]').attr("content") ||
+                        $('meta[name="twitter:player"]').attr("content");
+        
         if (videoUrl) {
           videoLinks.push({ quality: "HD", url: videoUrl, format: "mp4", type: "both" });
         }
       } else if (url.includes("facebook.com") || url.includes("fb.watch")) {
-        const videoUrl = $('meta[property="og:video"]').attr("content") || $('meta[property="og:video:url"]').attr("content") || $('meta[property="og:video:secure_url"]').attr("content");
+        const videoUrl = $('meta[property="og:video"]').attr("content") || 
+                        $('meta[property="og:video:url"]').attr("content") || 
+                        $('meta[property="og:video:secure_url"]').attr("content");
+        
         if (videoUrl) {
           videoLinks.push({ quality: "HD", url: videoUrl, format: "mp4", type: "both" });
+        }
+        
+        // Try to find high quality vs standard quality in scripts
+        const scripts = $("script").toArray();
+        for (const script of scripts) {
+          const content = $(script).html() || "";
+          const hdMatch = content.match(/"browser_native_hd_url":"([^"]+)"/);
+          const sdMatch = content.match(/"browser_native_sd_url":"([^"]+)"/);
+          
+          if (hdMatch) videoLinks.push({ quality: "HD", url: hdMatch[1].replace(/\\/g, ""), format: "mp4", type: "both" });
+          if (sdMatch) videoLinks.push({ quality: "SD", url: sdMatch[1].replace(/\\/g, ""), format: "mp4", type: "both" });
+          
+          if (videoLinks.length > 0) break;
         }
       }
 
